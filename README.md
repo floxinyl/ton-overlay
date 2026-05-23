@@ -22,6 +22,10 @@ Desktop only.
 
 ## Download
 
+[![Download](https://img.shields.io/badge/Download-.exe-blue?style=for-the-badge&logo=windows)](https://github.com/floxinyl/ton-overlay/releases/latest/download/ton_overlay.exe)
+
+or
+
 Go to the [Releases](../../releases) page and download the latest version.
 
 Two options are available:
