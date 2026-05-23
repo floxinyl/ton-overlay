@@ -1,14 +1,18 @@
 """
-VRChat Terrors of Nowhere Overlay  v3.3.1
+VRChat Terrors of Nowhere Overlay  v3.4.0
 
-Changes from v3.3.0:
-  - Round type label is now clickable: opens a session round-count popup
-    (same style as the terror info panel) showing how many times each
-    round type was seen this session.
-  - Terror name split fixed: terrors whose name contains ' & ' (e.g.
-    'Mona & The Mountain', 'Luigi & Luigi Dolls') no longer break into
-    false sub-terrors in the info panel.
-  - All v3.3.0 features preserved.
+Changes from v3.3.1:
+  - Unbound rounds: terror info panel shows "Waiting for round to reveal..."
+    for the first 11 seconds, then auto-updates to the actual Unbound round
+    details. Prevents spoiling ??? -> 3x Lisa false-positives on round start.
+  - Added Maze Thing to the terror database (renamed from Legs). Both names
+    are kept to avoid conflicts once the current event ends.
+  - Session Rounds panel now sorted highest count to lowest.
+  - Classic -> Alternate upgrade: if a round changes from Classic to Alternate
+    without an Intermission in between, the history entry and session count are
+    corrected in-place rather than adding a duplicate Classic entry.
+  - Tiffany: added note that she starts at ~110s left.
+  - All v3.3.1 features preserved.
 """
 
 import tkinter as tk
@@ -264,6 +268,7 @@ TERROR_DB = {
 
     # -- L -----------------------------------------------------------------
     'Legs':             ('yes', 'Short stun time.'),
+    'Maze Thing':       ('yes', 'Short stun time. Renamed from Legs.'),
     'Lisa': (
         'no',
         'Alternate terror (173s round timer). Cannot be stunned.'
@@ -538,7 +543,8 @@ TERROR_DB = {
     'Tiffany': (
         'conditional',
         'Normal weapons: cannot be stunned.\n'
-        'Holy weapon only: stunnable.'
+        'Holy weapon only: stunnable.\n'
+        'Starts at ~110s left.'
     ),
     'Time Ripper': (
         'partial',
@@ -1178,6 +1184,31 @@ class TerrorInfoPanel:
         for w in self.inner.winfo_children():
             w.destroy()
 
+        # ── Unbound waiting: round not yet revealed ───────────────────────────
+        if round_type == 'Unbound_waiting':
+            hdr = tk.Frame(self.inner, bg=C['bg'])
+            hdr.pack(fill=tk.X)
+            self._db(hdr)
+            ttl = tk.Label(hdr, text='Unbound',
+                           font=('Segoe UI', 10, 'bold'),
+                           bg=C['bg'], fg='#FF9500', anchor='w')
+            ttl.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            self._db(ttl)
+            x_btn = tk.Label(hdr, text='x',
+                             font=('Segoe UI', 11, 'bold'),
+                             bg=C['bg'], fg=C['fg_dim'], cursor='hand2')
+            x_btn.pack(side=tk.RIGHT, padx=(4, 0))
+            x_btn.bind('<Button-1>', lambda e: self.close())
+            tk.Frame(self.inner, bg=C['border'], height=1).pack(fill=tk.X, pady=(5, 6))
+            msg = tk.Label(self.inner,
+                           text='Waiting for round to reveal...',
+                           font=('Segoe UI', 8), bg=C['bg'],
+                           fg=C['fg_dim'], anchor='w')
+            msg.pack(fill=tk.X)
+            self._db(msg)
+            self._fit_height()
+            return
+
         # ── Unbound: show the terror list for this specific round ─────────────
         if round_type == 'Unbound':
             ur = _lookup_unbound(terror_name)
@@ -1459,12 +1490,15 @@ class RoundStatsPanel:
             self._fit_height()
             return
 
-        # Sort: known order first, then alphabetical for any unknowns
-        known   = [r for r in _ROUND_TYPE_ORDER if r in counts]
-        unknown = sorted(r for r in counts if r not in _ROUND_TYPE_ORDER)
-        total   = sum(counts.values())
+        # Sort by count descending; tie-break by known display order then alphabetical
+        def _sort_key(rtype):
+            order_idx = _ROUND_TYPE_ORDER.index(rtype) if rtype in _ROUND_TYPE_ORDER else len(_ROUND_TYPE_ORDER)
+            return (-counts[rtype], order_idx, rtype)
 
-        for rtype in known + unknown:
+        sorted_rounds = sorted(counts.keys(), key=_sort_key)
+        total = sum(counts.values())
+
+        for rtype in sorted_rounds:
             n    = counts[rtype]
             pct  = int(round(n / total * 100)) if total else 0
             col  = self.round_colors.get(rtype, C['fg_dim'])
@@ -1561,6 +1595,14 @@ class ToNOverlay:
         # Lisa name-reveal: if alternate round and killer is still ??? after 11s
         self.lisa_reveal_timer_start = None
         self.lisa_revealed           = False
+
+        # Unbound reveal: show waiting message for first 11s to avoid spoiling ???
+        self.unbound_timer_start = None
+        self.unbound_revealed    = False
+
+        # Timestamp of when the most recent round was added to history.
+        # Used to detect the Classic -> Alternate same-round misidentification.
+        self.last_round_added_time = None
 
         # Session survival counter (resets when overlay is closed)
         # Baseline is set on first 'survivals' websocket value received.
@@ -1748,7 +1790,10 @@ class ToNOverlay:
         name = self.terror_name
         if name in ("...", ""):
             return
-        self.info_panel.toggle(name, self.round_type)
+        rtype = self.round_type
+        if rtype == 'Unbound' and not self.unbound_revealed:
+            rtype = 'Unbound_waiting'
+        self.info_panel.toggle(name, rtype)
 
     def on_round_click(self, event):
         self.stats_panel.toggle(self.session_round_counts)
@@ -1880,8 +1925,11 @@ class ToNOverlay:
                         # Upgrade fog-like history to (Alternate) if needed
                         self._check_april_fools_alternate(new_terror)
                         if self.info_panel.is_open():
+                            rt = self.round_type
+                            if rt == 'Unbound' and not self.unbound_revealed:
+                                rt = 'Unbound_waiting'
                             self.root.after(
-                                0, lambda n=new_terror, r=self.round_type: self.info_panel.update_terror(n, r))
+                                0, lambda n=new_terror, r=rt: self.info_panel.update_terror(n, r))
 
                 elif name == 'RoundType':
                     if value and str(value).strip():
@@ -1920,8 +1968,30 @@ class ToNOverlay:
                                 self.lisa_reveal_timer_start = None
                                 self.lisa_revealed           = False
 
+                            # Unbound reveal: wait 11s before showing round info
+                            if new_round == 'Unbound':
+                                self.unbound_timer_start = time.time()
+                                self.unbound_revealed    = False
+                            else:
+                                self.unbound_timer_start = None
+                                self.unbound_revealed    = False
+
                             if new_round not in ('Intermission', 'Connecting...'):
-                                if (new_round == 'Fog (Alternate)'
+                                if (new_round == 'Alternate'
+                                        and self.round_history
+                                        and self.round_history[-1] == 'Classic'
+                                        and self.last_round_added_time is not None
+                                        and time.time() - self.last_round_added_time <= 15):
+                                    # Same round -- Classic was a premature label,
+                                    # replace it with Alternate in history and counts
+                                    self.round_history[-1] = 'Alternate'
+                                    if self.session_round_counts.get('Classic', 0) > 0:
+                                        self.session_round_counts['Classic'] -= 1
+                                        if self.session_round_counts['Classic'] == 0:
+                                            del self.session_round_counts['Classic']
+                                    self.session_round_counts['Alternate'] = \
+                                        self.session_round_counts.get('Alternate', 0) + 1
+                                elif (new_round == 'Fog (Alternate)'
                                         and self.round_history
                                         and self.round_history[-1] == 'Fog'):
                                     self.round_history[-1] = 'Fog (Alternate)'
@@ -1949,6 +2019,7 @@ class ToNOverlay:
                                         self.session_round_counts.get(new_round, 0) + 1
                                 else:
                                     self.round_history.append(new_round)
+                                    self.last_round_added_time = time.time()
                                     self.session_round_counts[new_round] = \
                                         self.session_round_counts.get(new_round, 0) + 1
                                 if len(self.round_history) > 4:
@@ -2014,6 +2085,16 @@ class ToNOverlay:
             if self.info_panel.is_open():
                 self.root.after(0, lambda: self.info_panel.update_terror('Lisa', 'Alternate'))
 
+        # Unbound reveal: after 11s flip the flag and refresh panel if open
+        if (self.round_type == 'Unbound'
+                and self.unbound_timer_start
+                and not self.unbound_revealed
+                and time.time() - self.unbound_timer_start >= 11):
+            self.unbound_revealed = True
+            if self.info_panel.is_open():
+                self.root.after(
+                    0, lambda n=self.terror_name: self.info_panel.update_terror(n, 'Unbound'))
+
         self.terror_value.configure(text=terror_text)
 
         # Hint dot -- always show when a terror name is present (panel is clickable)
@@ -2055,7 +2136,7 @@ class ToNOverlay:
 
 if __name__ == "__main__":
     print("=" * 56)
-    print("  ToN Overlay  v3.3.1")
+    print("  ToN Overlay  v3.4.0")
     print("=" * 56)
     print(f"  Terror DB : {len(TERROR_DB)} entries")
     print("  Bad Batter: AVOID STUN (enrage + no stun after Shadow Evil)")
