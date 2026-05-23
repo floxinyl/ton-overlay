@@ -4,6 +4,8 @@ A vibecoded desktop overlay for **Terrors of Nowhere** on VRChat.
 
 Displays live game info on a compact always-on-top HUD: current terror, round type, movement speed, session survivals, and round history. Click the terror name for full stun info. Click the round type for session stats.
 
+![Overlay preview](assets/preview.png)
+
 Desktop only.
 
 > **Work in progress.** Terror data is maintained manually and may be outdated or incorrect — the game updates frequently. The current April Fools event may also cause round types and terror combinations to behave differently than the overlay expects. Trick or Treat rounds will always display wrong map and terror info. If something else is wrong, open an issue.
