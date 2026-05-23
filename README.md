@@ -93,4 +93,4 @@ The overlay appears on screen. Drag it wherever you want.
 
 ## Version
 
-v3.3.1
+v3.4.0
