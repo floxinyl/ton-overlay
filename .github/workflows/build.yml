@@ -1,0 +1,46 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
+      - name: Build exe
+        run: pyinstaller --onefile --noconsole --name ton_overlay ton_overlay.py
+
+      - name: Extract version
+        id: version
+        shell: python
+        run: |
+          import re, os
+          content = open('ton_overlay.py').read()
+          match = re.search(r'ToN Overlay\s+v([\d.]+)', content)
+          version = match.group(1) if match else '0.0.0'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+              fh.write(f'version={version}\n')
+              fh.write(f'tag=v{version}\n')
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          make_latest: true
+          files: dist/ton_overlay.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
