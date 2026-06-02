@@ -1,18 +1,19 @@
 """
-VRChat Terrors of Nowhere Overlay  v3.4.0
+VRChat Terrors of Nowhere Overlay  v3.5.0
 
-Changes from v3.3.1:
-  - Unbound rounds: terror info panel shows "Waiting for round to reveal..."
-    for the first 11 seconds, then auto-updates to the actual Unbound round
-    details. Prevents spoiling ??? -> 3x Lisa false-positives on round start.
-  - Added Maze Thing to the terror database (renamed from Legs). Both names
-    are kept to avoid conflicts once the current event ends.
-  - Session Rounds panel now sorted highest count to lowest.
-  - Classic -> Alternate upgrade: if a round changes from Classic to Alternate
-    without an Intermission in between, the history entry and session count are
-    corrected in-place rather than adding a duplicate Classic entry.
-  - Tiffany: added note that she starts at ~110s left.
-  - All v3.3.1 features preserved.
+Changes from v3.4.0:
+  - April Fools event ended: Randomizer reverts to Punished, Classic.exe
+    reverts to Sabotage. Detection and display updated accordingly.
+  - Unbound round 35 renamed: "Seekers (3x Legs)" -> "Maze Things (3x Maze Thing)".
+  - Distorted Yan: added Korean alt-name alias (얀샋ㄷ요무) for correct detection.
+  - New alternate terror: Smile Walker (replaces Apathy). Added to TERROR_DB
+    and ALTERNATE_TERROR_NAMES with stun/tase/enrage notes.
+  - Next Round Predictor: during Intermission the round row now shows what
+    type comes next (Classic / 50-50 / Special) based on the loop-counter
+    state machine. Special shown in red, 50/50 in orange, Classic in white.
+    Host-change override (MASTER_CHANGE) appended as "(HC)".
+    Punished and 8 Pages reclassified as True Special (Tier 3), not Hijack.
+  - All v3.4.0 features preserved.
 """
 
 import tkinter as tk
@@ -57,6 +58,12 @@ TERROR_DB = {
         'do_not',
         'Stun triggers permanent enrage.\n'
         'Speed scales indefinitely -- nothing can outrun it at full speed.'
+    ),
+    'Smile Walker': (
+        'conditional',
+        'Tase (phase 1 only): holds it for 5s -- can still leap out of tase.\n'
+        'Stun: only during first second of Laugh & Leap to cancel it.\n'
+        'Enrages at 60s: immune to tasing, runs constantly, emits fire bursts.'
     ),
     'Apocalypse Bird':  ('no',  None),
     'Apocrean Harvester': (
@@ -639,6 +646,12 @@ TERROR_DB = {
         'Cannot be stunned normally.\n'
         'Repeated stuns from multiple players can temporarily disable its hands.'
     ),
+    # Korean alt-name for Distorted Yan
+    '얀샋ㄷ요무': (
+        'no',
+        'Cannot be stunned normally.\n'
+        'Repeated stuns from multiple players can temporarily disable its hands.'
+    ),
 }
 
 
@@ -760,10 +773,9 @@ STUN_CFG = {
 #  APRIL FOOLS ROUND NAME TRANSLATION
 # =============================================================================
 
-APRIL_FOOLS_MAP = {
-    'Punished': 'Randomizer',
-    'Sabotage': 'Classic.exe',
-}
+# April Fools event has ended -- map is empty; Punished and Sabotage
+# display under their real names again.
+APRIL_FOOLS_MAP = {}
 
 # Alternate-terror names (lower-case) – used to upgrade fog-like history entries
 # to their '(Alternate)' variant when the terror name is revealed.
@@ -787,6 +799,7 @@ ALTERNATE_TERROR_NAMES: set = {
     'cold night', 'meatball man',
     # new
     'azrael',
+    'smile walker',
 }
 
 
@@ -829,7 +842,7 @@ UNBOUND_ROUNDS = [
     {"round": 32, "name": "32. END OF THE WORLD",                  "terrors": "3x Joy"},
     {"round": 33, "name": "33. Fragmented Memories",               "terrors": "Psychosis forms of Toren's Shadow, Etrigan, With Many Voices, Maul-A-Child, Smileghost, Imposter"},
     {"round": 34, "name": "34. Mona & Mona & Mona & Mona",         "terrors": "4x Mona (Mona & The Mountain)"},
-    {"round": 35, "name": "35. Seekers",                           "terrors": "3x Legs"},
+    {"round": 35, "name": "35. Maze Things",                       "terrors": "3x Maze Thing"},
     {"round": 36, "name": "36. Nugget Squad",                      "terrors": "4x Convict Nugget (Convict Squad)"},
     {"round": 37, "name": "37. Saul's Goodmen",                    "terrors": "5x Saul Goodmen (Nextbots)"},
     {"round": 38, "name": "38. Something Old, Something New",      "terrors": "Security, Ancient Security"},
@@ -1604,6 +1617,12 @@ class ToNOverlay:
         # Used to detect the Classic -> Alternate same-round misidentification.
         self.last_round_added_time = None
 
+        # -- Next-round prediction (loop-counter state machine) ---------------
+        # States: 'classic' | '50/50' | 'special'
+        # Advances when each non-Intermission round type is received.
+        self._loop_state        = 'classic'   # conservative starting assumption
+        self._host_change_flag  = False       # True if MASTER_CHANGE fired
+
         # Session survival counter (resets when overlay is closed)
         # Baseline is set on first 'survivals' websocket value received.
         self.session_survivals       = 0
@@ -1744,8 +1763,17 @@ class ToNOverlay:
             round_row, text="...",
             font=('Segoe UI', 9), bg=C['bg'],
             fg=C['fg_dim'], anchor='w', cursor='hand2')
-        self.round_label_value.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.round_label_value.pack(side=tk.LEFT)
         self.round_label_value.bind('<Button-1>', self.on_round_click)
+
+        # Next-round prediction label (visible only during Intermission)
+        self.next_round_label = tk.Label(
+            round_row, text="",
+            font=('Segoe UI', 9), bg=C['bg'],
+            fg=C['fg_dim'], anchor='w')
+        self.next_round_label.pack(side=tk.LEFT, padx=(6, 0))
+        self.next_round_label.bind('<Button-1>', self.start_drag)
+        self.next_round_label.bind('<B1-Motion>', self.on_drag)
 
         # -- History row ------------------------------------------------------
         history_row = tk.Frame(content, bg=C['bg'])
@@ -1886,6 +1914,44 @@ class ToNOverlay:
                 print(f'✓ History: {base} → {base} (Alternate)')
                 self.update_history_display()
 
+    # -- loop-counter state machine -------------------------------------------
+
+    # Tier classification for the round-counter engine
+    _TIER2_ROUNDS = frozenset({
+        'Ghost', 'Ghost (Alternate)', 'RUN', 'Unbound',
+        'Randomizer', 'Randomizer (Alternate)',
+    })
+    _TIER3_ROUNDS = frozenset({
+        'Fog', 'Fog (Alternate)',
+        'Sabotage', 'Classic.exe', 'Classic.exe (Alternate)',
+        'Midnight', 'Alternate', 'Bloodbath', 'Double Trouble', 'Cracked',
+        '8 Pages', 'Punished',
+    })
+    _TIER4_ROUNDS = frozenset({
+        'Mystic Moon', 'Blood Moon', 'Twilight', 'Solstice',
+    })
+
+    def _advance_loop_state(self, round_type: str):
+        """Advance the next-round prediction based on the round that just started."""
+        rt = round_type
+        if rt in self._TIER4_ROUNDS or rt in self._TIER3_ROUNDS:
+            # True Special or Moon: resets to guaranteed Classic
+            self._loop_state       = 'classic'
+            self._host_change_flag = False
+        elif rt in self._TIER2_ROUNDS:
+            # Hijack: always lands on the 50/50 zone next
+            self._loop_state       = '50/50'
+            self._host_change_flag = False
+        elif rt == 'Classic':
+            # Tier 1: step the counter forward
+            if self._loop_state == 'classic':
+                self._loop_state = '50/50'
+            elif self._loop_state == '50/50':
+                self._loop_state = 'special'
+            # 'special' -> Classic shouldn't happen, keep state unchanged
+            self._host_change_flag = False
+        # Unknown round types: leave state unchanged
+
     # -- OSC ------------------------------------------------------------------
 
     def on_osc_message(self, address, value):
@@ -1906,6 +1972,14 @@ class ToNOverlay:
         try:
             if not isinstance(data, dict):
                 return
+
+            # Host migration: force the upcoming round to Special
+            if data.get('TYPE') == 'MASTER_CHANGE':
+                self._loop_state       = 'special'
+                self._host_change_flag = True
+                print('⚡ MASTER_CHANGE: next round forced to Special (HC)')
+                return
+
             if data.get('Type') == 'STATS' and 'Name' in data and 'Value' in data:
                 name  = data['Name']
                 value = data['Value']
@@ -1959,6 +2033,10 @@ class ToNOverlay:
                                 self.april_fools_base     = ''
 
                             self.round_type = new_round
+
+                            # Advance the next-round predictor
+                            if new_round not in ('Intermission', 'Connecting...'):
+                                self._advance_loop_state(new_round)
 
                             # Lisa reveal: start 11s timer on Alternate rounds
                             if new_round == 'Alternate':
@@ -2110,6 +2188,22 @@ class ToNOverlay:
             text=self.round_type,
             fg=self.get_round_color(self.round_type))
 
+        # Next-round prediction (Intermission only)
+        if self.round_type == 'Intermission':
+            pred = self._loop_state
+            if pred == 'classic':
+                ntext = '→  Classic'
+                ncol  = self.colors['fg']           # white
+            elif pred == 'special':
+                ntext = '→  Special (HC)' if self._host_change_flag else '→  Special'
+                ncol  = '#FF3B30'                   # red
+            else:                                   # 50/50
+                ntext = '→  50/50'
+                ncol  = '#FF9F0A'                   # orange
+            self.next_round_label.configure(text=ntext, fg=ncol)
+        else:
+            self.next_round_label.configure(text='')
+
         # Round hint dot -- show when at least one round has been counted
         if self.session_round_counts:
             hc = C['fg_dim'] if self.stats_panel.is_open() else C['hint_color']
@@ -2136,14 +2230,19 @@ class ToNOverlay:
 
 if __name__ == "__main__":
     print("=" * 56)
-    print("  ToN Overlay  v3.4.0")
+    print("  ToN Overlay  v3.5.0")
     print("=" * 56)
     print(f"  Terror DB : {len(TERROR_DB)} entries")
     print("  Bad Batter: AVOID STUN (enrage + no stun after Shadow Evil)")
     print("  Purple Foxy: alternate terror, not stunnable")
     print("  Lisa: Alternate round ??? -> Lisa after 11s")
     print("  Session SP counter (speed row, right) | WS key: lobbysurvivals")
-    print("  Punished -> Randomizer  |  Sabotage -> Classic.exe")
+    print("  Punished -> Punished  |  Sabotage -> Sabotage  (April Fools over)")
+    print("  Smile Walker: new alternate terror (conditional stun)")
+    print("  Distorted Yan: Korean alt-name (얀샋ㄷ요무) recognised")
+    print("  Unbound round 35: Maze Things (3x Maze Thing)")
+    print("  Next Round predictor on Intermission row (Classic/50-50/Special)")
+    print("  MASTER_CHANGE -> forced Special (HC) tag on predictor")
     print("  Unbound info panel shows full terror list")
     print("  Close (x) button on main overlay")
     print("  Panel     : stun-focus, per-body/phase/add breakdown")
