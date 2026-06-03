@@ -12,7 +12,7 @@ Changes from v3.4.0:
     type comes next (Classic / 50-50 / Special) based on the loop-counter
     state machine. Special shown in red, 50/50 in orange, Classic in white.
     Host-change override (MASTER_CHANGE) appended as "(HC)".
-    Punished and 8 Pages confirmed as Hijack (Tier 2), not True Special.
+    8 Pages + Punished = Hijack (Tier 2). Hijack may intercept any slot.
   - All v3.4.0 features preserved.
 """
 
