@@ -12,7 +12,7 @@ Changes from v3.4.0:
     type comes next (Classic / 50-50 / Special) based on the loop-counter
     state machine. Special shown in red, 50/50 in orange, Classic in white.
     Host-change override (MASTER_CHANGE) appended as "(HC)".
-    Punished and 8 Pages reclassified as True Special (Tier 3), not Hijack.
+    Punished and 8 Pages confirmed as Hijack (Tier 2), not True Special.
   - All v3.4.0 features preserved.
 """
 
@@ -1919,13 +1919,12 @@ class ToNOverlay:
     # Tier classification for the round-counter engine
     _TIER2_ROUNDS = frozenset({
         'Ghost', 'Ghost (Alternate)', 'RUN', 'Unbound',
-        'Randomizer', 'Randomizer (Alternate)',
+        '8 Pages', 'Punished', 'Randomizer', 'Randomizer (Alternate)',
     })
     _TIER3_ROUNDS = frozenset({
         'Fog', 'Fog (Alternate)',
         'Sabotage', 'Classic.exe', 'Classic.exe (Alternate)',
         'Midnight', 'Alternate', 'Bloodbath', 'Double Trouble', 'Cracked',
-        '8 Pages', 'Punished',
     })
     _TIER4_ROUNDS = frozenset({
         'Mystic Moon', 'Blood Moon', 'Twilight', 'Solstice',
