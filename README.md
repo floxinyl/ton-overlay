@@ -95,7 +95,7 @@ The overlay appears on screen. Drag it wherever you want.
 
 ### v3.5.0
 - **April Fools event ended** — Randomizer reverts to Punished, Classic.exe reverts to Sabotage. Detection and display updated accordingly.
-- **Next Round Predictor** — during Intermission, the round row now shows what type comes next (Classic / 50-50 / Special) based on the loop-counter state machine. Special in red, 50/50 in orange, Classic in white. Host-change override (MASTER_CHANGE) appends **(HC)** to the prediction. Punished and 8 Pages are True Special rounds (reset loop to Classic), not Hijack rounds.
+- **Next Round Predictor** — during Intermission, the round row now shows what type comes next (Classic / 50-50 / Special) based on the loop-counter state machine. Special in red, 50/50 in orange, Classic in white. Host-change override (MASTER_CHANGE) appends **(HC)** to the prediction. Punished and 8 Pages are Hijack rounds (force loop to 50/50), not True Special.
 - **Smile Walker** — new alternate terror added to the database (replaces Apathy). Conditional stun: tase in phase 1 holds for 5s (can still leap); stun only works during first second of Laugh & Leap. Enrages at 60s.
 - **Distorted Yan** — added Korean alt-name alias (`얀샋ㄷ요무`) so the terror is detected correctly under either name.
 - **Unbound round 35** renamed from *Seekers (3x Legs)* to *Maze Things (3x Maze Thing)* following the in-game rename.
