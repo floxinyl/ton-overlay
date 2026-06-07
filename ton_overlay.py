@@ -1572,16 +1572,7 @@ class RoundStatsPanel:
 # =============================================================================
 
 class RoundSettingsWindow:
-    """Settings popup for configuring the four ambiguous rounds in the predictor.
-    Opens via Ctrl+Click on the main overlay."""
-
-    ROUNDS = ['Ghost', 'Punished', '8 Pages', 'RUN']
-
-    SLOT_LABELS = ['Hijack – Normal only', 'Hijack – Any slot', 'True Special']
-    SLOT_VALUES = ['hijack_normal',          'hijack_any',        'special']
-
-    AFTER_LABELS = ['→ Classic',  '→ 50/50',  '→ Special']
-    AFTER_VALUES = ['classic',    '50/50',    'special']
+    """Ctrl+Click settings popup — configures the four ambiguous hijack rounds."""
 
     def __init__(self, overlay):
         self.overlay = overlay
@@ -1596,126 +1587,96 @@ class RoundSettingsWindow:
         self.win.wm_attributes('-transparentcolor', 'black')
         self.win.protocol("WM_DELETE_WINDOW", self.destroy)
 
-        # Appear to the right of the main overlay
         self.win.update_idletasks()
         ox = overlay.root.winfo_x()
         oy = overlay.root.winfo_y()
         ow = overlay.root.winfo_width()
-        self.win.geometry(f'380x230+{ox + ow + 6}+{oy}')
+        self.win.geometry(f'340x220+{ox + ow + 6}+{oy}')
 
         self._drag_x = 0
         self._drag_y = 0
-
         self._build(C)
 
     # ------------------------------------------------------------------ build
 
     def _build(self, C):
-        MENU_BG  = '#1C1C1E'
-        MENU_HOV = '#3A3A3C'
+        RB  = {'bg': C['bg'], 'fg': C['fg'],
+               'activebackground': C['bg'], 'activeforeground': C['fg'],
+               'selectcolor': '#3A3A3C', 'font': ('Segoe UI', 8),
+               'relief': 'flat', 'bd': 0, 'highlightthickness': 0}
 
-        # Rounded background canvas
         canvas = RoundedFrame(self.win, radius=12, bg='black', highlightthickness=0)
         canvas.pack(fill=tk.BOTH, expand=True)
         canvas.bind('<Configure>', lambda e: (
             canvas.delete('all'),
-            canvas.draw_rounded_rect(
-                0, 0, e.width, e.height,
-                fill=C['bg'], outline=C['border'])
+            canvas.draw_rounded_rect(0, 0, e.width, e.height,
+                                     fill=C['bg'], outline=C['border'])
         ))
 
-        frame = tk.Frame(canvas, bg=C['bg'])
-        frame.place(x=14, y=10, relwidth=1, relheight=1, width=-28, height=-20)
+        f = tk.Frame(canvas, bg=C['bg'])
+        f.place(x=14, y=10, relwidth=1, relheight=1, width=-28, height=-20)
 
         # Title bar
-        title_row = tk.Frame(frame, bg=C['bg'])
-        title_row.pack(fill=tk.X, pady=(0, 3))
-        for w in (title_row,):
-            w.bind('<Button-1>',   self._start_drag)
-            w.bind('<B1-Motion>',  self._on_drag)
+        tbar = tk.Frame(f, bg=C['bg'])
+        tbar.pack(fill=tk.X, pady=(0, 3))
+        tbar.bind('<Button-1>',  self._start_drag)
+        tbar.bind('<B1-Motion>', self._on_drag)
 
-        tk.Label(title_row, text='⚙  Round Predictor Settings',
+        tk.Label(tbar, text='⚙  Hijack Round Settings',
                  font=('Segoe UI', 9, 'bold'),
                  bg=C['bg'], fg=C['fg']).pack(side=tk.LEFT)
-
-        close = tk.Label(title_row, text='✕',
-                         font=('Segoe UI', 9, 'bold'),
+        close = tk.Label(tbar, text='✕', font=('Segoe UI', 9, 'bold'),
                          bg=C['bg'], fg=C['fg_dim'], cursor='hand2')
-        close.pack(side=tk.RIGHT, padx=(4, 0))
+        close.pack(side=tk.RIGHT)
         close.bind('<Button-1>', lambda e: self.destroy())
 
-        # Separator
-        tk.Frame(frame, bg=C['border'], height=1).pack(fill=tk.X, pady=(2, 5))
+        tk.Frame(f, bg=C['border'], height=1).pack(fill=tk.X, pady=(2, 6))
 
-        # Description
-        tk.Label(
-            frame,
-            text=(
-                'These rounds have ambiguous behaviour in the loop counter.\n'
-                'Slot  — when the round can appear (Normal slot / Any slot / Special slot).\n'
-                'After — what prediction state follows once it plays.'
-            ),
-            font=('Segoe UI', 8), bg=C['bg'], fg=C['fg_dim'],
-            justify='left', anchor='w'
-        ).pack(fill=tk.X, pady=(0, 5))
+        tk.Label(f, text='Applies to:  Ghost · Punished · 8 Pages · RUN',
+                 font=('Segoe UI', 8), bg=C['bg'], fg=C['fg_dim'],
+                 anchor='w').pack(fill=tk.X, pady=(0, 6))
 
-        tk.Frame(frame, bg=C['border'], height=1).pack(fill=tk.X, pady=(0, 5))
+        tk.Frame(f, bg=C['border'], height=1).pack(fill=tk.X, pady=(0, 8))
 
-        # Column headers
-        hdr = tk.Frame(frame, bg=C['bg'])
-        hdr.pack(fill=tk.X)
-        for col, (txt, w) in enumerate([('Round', 9), ('Slot', 20), ('After', 12)]):
-            tk.Label(hdr, text=txt, width=w, font=('Segoe UI', 8, 'bold'),
-                     bg=C['bg'], fg=C['fg_dim'], anchor='w').grid(
-                         row=0, column=col, sticky='w')
+        # -- After State group ------------------------------------------------
+        tk.Label(f, text='After State', font=('Segoe UI', 8, 'bold'),
+                 bg=C['bg'], fg=C['fg'], anchor='w').pack(fill=tk.X)
+        tk.Label(f, text='What loop state follows after one of these rounds plays.',
+                 font=('Segoe UI', 7), bg=C['bg'], fg=C['fg_dim'],
+                 anchor='w').pack(fill=tk.X, pady=(0, 4))
 
-        # Round rows
-        self._slot_vars  = {}
-        self._after_vars = {}
+        self._after_var = tk.StringVar(value=self.overlay._hijack_after_mode)
 
-        grid = tk.Frame(frame, bg=C['bg'])
-        grid.pack(fill=tk.X, pady=(3, 0))
+        tk.Radiobutton(f, text='Always → 50/50   (safe default)',
+                       variable=self._after_var, value='always_50_50',
+                       command=self._save, **RB).pack(anchor='w')
+        tk.Radiobutton(f, text='Slot-dependent   (→ Classic if hijacked a Special slot)',
+                       variable=self._after_var, value='slot_dependent',
+                       command=self._save, **RB).pack(anchor='w')
 
-        for i, rnd in enumerate(self.ROUNDS):
-            cfg = self.overlay._configurable_rounds[rnd]
+        tk.Frame(f, bg=C['border'], height=1).pack(fill=tk.X, pady=(8, 8))
 
-            sv = tk.StringVar(value=self.SLOT_LABELS[self.SLOT_VALUES.index(cfg['slot'])])
-            av = tk.StringVar(value=self.AFTER_LABELS[self.AFTER_VALUES.index(cfg['after'])])
-            self._slot_vars[rnd]  = sv
-            self._after_vars[rnd] = av
+        # -- Slot Behaviour group --------------------------------------------
+        tk.Label(f, text='Slot Behaviour', font=('Segoe UI', 8, 'bold'),
+                 bg=C['bg'], fg=C['fg'], anchor='w').pack(fill=tk.X)
+        tk.Label(f, text='Which slot types these rounds are allowed to appear in.',
+                 font=('Segoe UI', 7), bg=C['bg'], fg=C['fg_dim'],
+                 anchor='w').pack(fill=tk.X, pady=(0, 4))
 
-            # Name label
-            tk.Label(grid, text=rnd, width=9,
-                     font=('Segoe UI', 8), bg=C['bg'], fg=C['fg'],
-                     anchor='w').grid(row=i, column=0, sticky='w', pady=2)
+        self._slot_var = tk.BooleanVar(value=self.overlay._hijack_can_replace_special)
 
-            # Slot dropdown
-            sm = tk.OptionMenu(grid, sv, *self.SLOT_LABELS,
-                               command=lambda _, r=rnd: self._on_change(r))
-            sm.config(font=('Segoe UI', 8), bg=MENU_BG, fg=C['fg'],
-                      activebackground=MENU_HOV, activeforeground=C['fg'],
-                      relief='flat', bd=0, highlightthickness=0, width=18)
-            sm['menu'].config(font=('Segoe UI', 8), bg=MENU_BG, fg=C['fg'],
-                              activebackground=MENU_HOV, activeforeground=C['fg'])
-            sm.grid(row=i, column=1, sticky='w', padx=(4, 0), pady=2)
-
-            # After dropdown
-            am = tk.OptionMenu(grid, av, *self.AFTER_LABELS,
-                               command=lambda _, r=rnd: self._on_change(r))
-            am.config(font=('Segoe UI', 8), bg=MENU_BG, fg=C['fg'],
-                      activebackground=MENU_HOV, activeforeground=C['fg'],
-                      relief='flat', bd=0, highlightthickness=0, width=11)
-            am['menu'].config(font=('Segoe UI', 8), bg=MENU_BG, fg=C['fg'],
-                              activebackground=MENU_HOV, activeforeground=C['fg'])
-            am.grid(row=i, column=2, sticky='w', padx=(4, 0), pady=2)
+        tk.Radiobutton(f, text='Normal only   (cannot appear when Special is due)',
+                       variable=self._slot_var, value=False,
+                       command=self._save, **RB).pack(anchor='w')
+        tk.Radiobutton(f, text='Any slot   (can appear anytime, including Special slots)',
+                       variable=self._slot_var, value=True,
+                       command=self._save, **RB).pack(anchor='w')
 
     # ------------------------------------------------------------------ events
 
-    def _on_change(self, rnd):
-        sl = self._slot_vars[rnd].get()
-        af = self._after_vars[rnd].get()
-        self.overlay._configurable_rounds[rnd]['slot']  = self.SLOT_VALUES[self.SLOT_LABELS.index(sl)]
-        self.overlay._configurable_rounds[rnd]['after'] = self.AFTER_VALUES[self.AFTER_LABELS.index(af)]
+    def _save(self):
+        self.overlay._hijack_after_mode          = self._after_var.get()
+        self.overlay._hijack_can_replace_special = bool(self._slot_var.get())
         self.overlay._save_config()
 
     def _start_drag(self, event):
@@ -1728,6 +1689,186 @@ class RoundSettingsWindow:
 
     def destroy(self):
         self.overlay._settings_window = None
+        self.win.destroy()
+
+
+
+# ---------------------------------------------------------------------------
+
+class VRWindow:
+    """Detectable application window for XSOverlay / VR use.
+    Shows all key overlay info in one compact, readable layout.
+    Not transparent — appears as a normal window so XSOverlay can capture it."""
+
+    _STUN_MAP = {
+        'yes':         ('✓  STUNNABLE',       '#32D74B'),
+        'no':          ('✗  NOT STUNNABLE',   '#FF453A'),
+        'avoid':       ('⚠  AVOID STUN',      '#FF9F0A'),
+        'do_not':      ('✗  DO NOT STUN',     '#FF453A'),
+        'partial':     ('◑  PARTIAL',         '#FFD700'),
+        'conditional': ('◐  CONDITIONAL',     '#FF9F0A'),
+        'teleport':    ('⟳  TELEPORTS',       '#BF5AF2'),
+    }
+
+    def __init__(self, overlay):
+        self.overlay = overlay
+        C = overlay.colors
+
+        self.win = tk.Toplevel(overlay.root)
+        self.win.title('ToN Overlay – VR')
+        self.win.configure(bg='#0D0D0D')
+        self.win.geometry('520x330')
+        self.win.resizable(True, True)
+        self.win.attributes('-topmost', False)   # normal window so XSOverlay detects it
+        self.win.protocol("WM_DELETE_WINDOW", self.destroy)
+
+        self._last_session_counts = {}
+        self._build(C)
+
+    # ------------------------------------------------------------------ build
+
+    def _build(self, C):
+        BG   = '#0D0D0D'
+        DIM  = '#8E8E93'
+        SEP  = '#2C2C2E'
+        BOLD = ('Segoe UI', 8, 'bold')
+        SM   = ('Segoe UI', 8)
+
+        pad = tk.Frame(self.win, bg=BG, padx=16, pady=12)
+        pad.pack(fill=tk.BOTH, expand=True)
+
+        # Two columns
+        left    = tk.Frame(pad, bg=BG)
+        divider = tk.Frame(pad, bg=SEP, width=1)
+        right   = tk.Frame(pad, bg=BG)
+        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        divider.pack(side=tk.LEFT, fill=tk.Y, padx=14)
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # ---- LEFT: Terror --------------------------------------------------
+        tk.Label(left, text='TERROR', font=BOLD, bg=BG, fg=DIM,
+                 anchor='w').pack(fill=tk.X)
+
+        self.vr_terror_name = tk.Label(
+            left, text='—', font=('Segoe UI', 22, 'bold'),
+            bg=BG, fg='#FFFFFF', wraplength=210, justify='left', anchor='w')
+        self.vr_terror_name.pack(anchor='w', pady=(2, 6))
+
+        self.vr_stun_status = tk.Label(
+            left, text='', font=('Segoe UI', 10, 'bold'),
+            bg=BG, fg='#FFFFFF', anchor='w')
+        self.vr_stun_status.pack(anchor='w')
+
+        self.vr_stun_note = tk.Label(
+            left, text='', font=SM, bg=BG, fg=DIM,
+            anchor='w', justify='left', wraplength=210)
+        self.vr_stun_note.pack(anchor='w', pady=(3, 0))
+
+        # ---- RIGHT: Round + Speed + Session --------------------------------
+        # Round
+        tk.Label(right, text='ROUND', font=BOLD, bg=BG, fg=DIM,
+                 anchor='w').pack(fill=tk.X)
+        self.vr_round_type = tk.Label(
+            right, text='—', font=('Segoe UI', 15, 'bold'),
+            bg=BG, fg=DIM, anchor='w')
+        self.vr_round_type.pack(anchor='w')
+        self.vr_next_round = tk.Label(
+            right, text='', font=('Segoe UI', 9),
+            bg=BG, fg=DIM, anchor='w')
+        self.vr_next_round.pack(anchor='w', pady=(1, 8))
+
+        tk.Frame(right, bg=SEP, height=1).pack(fill=tk.X, pady=(0, 7))
+
+        # Speed
+        tk.Label(right, text='SPEED', font=BOLD, bg=BG, fg=DIM,
+                 anchor='w').pack(fill=tk.X)
+        self.vr_speed = tk.Label(
+            right, text='0.0 m/s', font=('Segoe UI', 14, 'bold'),
+            bg=BG, fg='#FFFFFF', anchor='w')
+        self.vr_speed.pack(anchor='w', pady=(0, 8))
+
+        tk.Frame(right, bg=SEP, height=1).pack(fill=tk.X, pady=(0, 7))
+
+        # Session rounds
+        tk.Label(right, text='SESSION', font=BOLD, bg=BG, fg=DIM,
+                 anchor='w').pack(fill=tk.X)
+        self.vr_session_frame = tk.Frame(right, bg=BG)
+        self.vr_session_frame.pack(fill=tk.X, anchor='w')
+
+    # ------------------------------------------------------------------ update
+
+    def update(self, overlay):
+        C   = overlay.colors
+        BG  = '#0D0D0D'
+        DIM = '#8E8E93'
+
+        # Terror name
+        name = overlay.terror_name
+        self.vr_terror_name.configure(
+            text=name if name not in ('...', '') else '—')
+
+        # Stun status + note
+        info = TERROR_DB.get(name)
+        if info:
+            key, note = info
+            label, color = self._STUN_MAP.get(key, ('? UNKNOWN', DIM))
+            self.vr_stun_status.configure(text=label, fg=color)
+            self.vr_stun_note.configure(text=note or '')
+        else:
+            self.vr_stun_status.configure(text='')
+            self.vr_stun_note.configure(text='')
+
+        # Round type
+        rt = overlay.round_type
+        self.vr_round_type.configure(
+            text=rt if rt not in ('...', '') else '—',
+            fg=overlay.get_round_color(rt))
+
+        # Next round prediction
+        if rt == 'Intermission':
+            pred = overlay._loop_state
+            if pred == 'classic':
+                nt, nc = 'Next  →  Classic', '#FFFFFF'
+            elif pred == 'special':
+                hc = '  (HC)' if overlay._host_change_flag else ''
+                nt, nc = f'Next  →  Special{hc}', '#FF3B30'
+            else:
+                nt, nc = 'Next  →  50/50', '#FF9F0A'
+            self.vr_next_round.configure(text=nt, fg=nc)
+        else:
+            self.vr_next_round.configure(text='')
+
+        # Speed
+        spd = overlay.horizontal_speed
+        sc  = ('#32D74B' if spd > 6.0 else
+               '#FF9F0A' if spd > 5.5 else '#FFFFFF')
+        self.vr_speed.configure(text=f'{spd:.1f} m/s', fg=sc)
+
+        # Session rounds — only rebuild when the dict changes
+        counts = overlay.session_round_counts
+        if counts != self._last_session_counts:
+            self._last_session_counts = dict(counts)
+            for w in self.vr_session_frame.winfo_children():
+                w.destroy()
+            sorted_rounds = sorted(counts.items(), key=lambda x: -x[1])
+            for rnd, cnt in sorted_rounds[:10]:
+                row = tk.Frame(self.vr_session_frame, bg=BG)
+                row.pack(fill=tk.X, pady=1)
+                tk.Label(row, text=rnd, font=('Segoe UI', 8),
+                         bg=BG, fg=overlay.get_round_color(rnd),
+                         anchor='w').pack(side=tk.LEFT)
+                tk.Label(row, text=f'×{cnt}', font=('Segoe UI', 8),
+                         bg=BG, fg=DIM, anchor='e').pack(side=tk.RIGHT)
+
+    # ------------------------------------------------------------------ close
+
+    def destroy(self):
+        self.overlay._vr_window = None
+        # Reflect toggle state in main overlay
+        try:
+            self.overlay.vr_toggle_label.configure(text='VR', fg=self.overlay.colors['fg_dim'])
+        except Exception:
+            pass
         self.win.destroy()
 
 
@@ -1787,16 +1928,16 @@ class ToNOverlay:
         self._loop_state        = 'classic'   # conservative starting assumption
         self._host_change_flag  = False       # True if MASTER_CHANGE fired
 
-        # Configurable rounds: Ghost / Punished / 8 Pages / RUN
-        # Each entry: slot ('hijack_normal' | 'hijack_any' | 'special')
-        #             after ('classic' | '50/50' | 'special')
-        self._configurable_rounds = {
-            'Ghost':    {'slot': 'hijack_normal', 'after': '50/50'},
-            'Punished': {'slot': 'hijack_normal', 'after': '50/50'},
-            '8 Pages':  {'slot': 'hijack_normal', 'after': '50/50'},
-            'RUN':      {'slot': 'hijack_normal', 'after': '50/50'},
-        }
+        # Hijack round settings (Ghost / Punished / 8 Pages / RUN)
+        # after_mode: 'always_50_50' | 'slot_dependent'
+        #   always_50_50   → always forces 50/50 after, regardless of slot taken
+        #   slot_dependent → if they hijacked a Special slot → classic instead
+        # can_replace_special: whether these rounds can appear in a Special slot
+        self._hijack_after_mode          = 'always_50_50'
+        self._hijack_can_replace_special = False
+
         self._settings_window = None
+        self._vr_window       = None
         self._load_config()
 
         # Session survival counter (resets when overlay is closed)
@@ -1885,8 +2026,14 @@ class ToNOverlay:
         self.survival_counter_label.bind('<Button-1>', self.start_drag)
         self.survival_counter_label.bind('<B1-Motion>', self.on_drag)
 
-        # Left spacer mirrors the SP label width so speed stays truly centred
-        tk.Label(speed_row, bg=C['bg'], width=6).pack(side=tk.LEFT)
+        # VR mode toggle — top-left of speed row, mirrors SP label width for centering
+        self.vr_toggle_label = tk.Label(
+            speed_row, text='VR', width=3,
+            font=('Segoe UI', 7, 'bold'),
+            bg=C['bg'], fg=C['fg_dim'],
+            cursor='hand2', anchor='w')
+        self.vr_toggle_label.pack(side=tk.LEFT)
+        self.vr_toggle_label.bind('<Button-1>', lambda e: self.toggle_vr_mode())
 
         self.speed_value = tk.Label(
             speed_row, text="0.00 m/s",
@@ -2099,6 +2246,23 @@ class ToNOverlay:
                 print(f'✓ History: {base} → {base} (Alternate)')
                 self.update_history_display()
 
+    # -- VR mode --------------------------------------------------------------
+
+    def toggle_vr_mode(self):
+        if self._vr_window is not None:
+            self._vr_window.destroy()          # destroy() clears self._vr_window
+        else:
+            self._vr_window = VRWindow(self)
+            self.vr_toggle_label.configure(fg='#0A84FF')  # blue = active
+
+    def _update_vr_window(self):
+        if self._vr_window is None:
+            return
+        try:
+            self._vr_window.update(self)
+        except tk.TclError:
+            self._vr_window = None
+
     # -- predictor settings (persist to JSON) ---------------------------------
 
     @staticmethod
@@ -2112,23 +2276,20 @@ class ToNOverlay:
         try:
             with open(self._config_path()) as f:
                 data = json.load(f)
-            valid_slots  = ('hijack_normal', 'hijack_any', 'special')
-            valid_afters = ('classic', '50/50', 'special')
-            for rnd in self._configurable_rounds:
-                if rnd in data:
-                    s = data[rnd].get('slot')
-                    a = data[rnd].get('after')
-                    if s in valid_slots:
-                        self._configurable_rounds[rnd]['slot'] = s
-                    if a in valid_afters:
-                        self._configurable_rounds[rnd]['after'] = a
+            if data.get('hijack_after_mode') in ('always_50_50', 'slot_dependent'):
+                self._hijack_after_mode = data['hijack_after_mode']
+            if isinstance(data.get('hijack_can_replace_special'), bool):
+                self._hijack_can_replace_special = data['hijack_can_replace_special']
         except (FileNotFoundError, json.JSONDecodeError, KeyError):
             pass
 
     def _save_config(self):
         try:
             with open(self._config_path(), 'w') as f:
-                json.dump(self._configurable_rounds, f, indent=2)
+                json.dump({
+                    'hijack_after_mode':          self._hijack_after_mode,
+                    'hijack_can_replace_special': self._hijack_can_replace_special,
+                }, f, indent=2)
         except Exception:
             pass
 
@@ -2157,13 +2318,23 @@ class ToNOverlay:
         'Mystic Moon', 'Blood Moon', 'Twilight', 'Solstice',
     })
 
+    # The four rounds whose behaviour can be configured via the settings window
+    _CONFIGURABLE_HIJACK = frozenset({'Ghost', 'Punished', '8 Pages', 'RUN'})
+
     def _advance_loop_state(self, round_type: str):
         """Advance the next-round prediction based on the round that just started."""
         rt = round_type
 
-        # Configurable rounds take full priority
-        if rt in self._configurable_rounds:
-            self._loop_state       = self._configurable_rounds[rt]['after']
+        # Configurable hijack rounds (Ghost / Punished / 8 Pages / RUN)
+        if rt in self._CONFIGURABLE_HIJACK:
+            slot_was_special = (self._loop_state == 'special')
+            if (self._hijack_after_mode == 'slot_dependent'
+                    and self._hijack_can_replace_special
+                    and slot_was_special):
+                # Hijacked a Special slot → behave like True Special, reset
+                self._loop_state = 'classic'
+            else:
+                self._loop_state = '50/50'
             self._host_change_flag = False
             return
 
@@ -2172,7 +2343,7 @@ class ToNOverlay:
             self._loop_state       = 'classic'
             self._host_change_flag = False
         elif rt in self._TIER2_ROUNDS:
-            # Hijack: always lands on the 50/50 zone next
+            # Non-configurable Hijack (Unbound, Randomizer…): always → 50/50
             self._loop_state       = '50/50'
             self._host_change_flag = False
         elif rt == 'Classic':
@@ -2181,7 +2352,6 @@ class ToNOverlay:
                 self._loop_state = '50/50'
             elif self._loop_state == '50/50':
                 self._loop_state = 'special'
-            # 'special' -> Classic shouldn't happen, keep state unchanged
             self._host_change_flag = False
         # Unknown round types: leave state unchanged
 
@@ -2444,13 +2614,24 @@ class ToNOverlay:
         else:
             self.round_hint.configure(text="")
 
+        self._update_vr_window()
         self.root.after(16, self.update_ui)
 
     # -- close ----------------------------------------------------------------
 
     def on_close(self):
+        if self._vr_window is not None:
+            try:
+                self._vr_window.win.destroy()
+            except Exception:
+                pass
         self.info_panel.close()
         self.stats_panel.close()
+        if self._settings_window is not None:
+            try:
+                self._settings_window.win.destroy()
+            except Exception:
+                pass
         self.osc_server.stop()
         self.ws_client.stop()
         self.root.destroy()
