@@ -31,10 +31,11 @@ jobs:
         shell: python
         run: |
           import re, os
-          content = open('ton_overlay.py').read()
+          content = open('ton_overlay.py', encoding='utf-8').read()
           match = re.search(r'ToN Overlay\s+v([\d.]+)', content)
           version = match.group(1) if match else '0.0.0'
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+          print(f'Detected version: {version}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
               fh.write(f'version={version}\n')
               fh.write(f'tag=v{version}\n')
 
