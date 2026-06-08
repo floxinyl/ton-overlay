@@ -95,7 +95,9 @@ The overlay appears on screen. Drag it wherever you want.
 
 ### v3.5.0
 - **April Fools event ended** — Randomizer reverts to Punished, Classic.exe reverts to Sabotage. Detection and display updated accordingly.
-- **Next Round Predictor** — during Intermission, the round row now shows what type comes next (Classic / 50-50 / Special) based on the loop-counter state machine. Special in red, 50/50 in orange, Classic in white. Host-change override (MASTER_CHANGE) appends **(HC)** to the prediction. Punished and 8 Pages are Hijack rounds (force loop to 50/50), not True Special.
+- **Next Round Predictor** — during Intermission, the round row now shows what type comes next (Classic / 50-50 / Special) based on the loop-counter state machine. Special in red, 50/50 in orange, Classic in white. Host-change override (MASTER_CHANGE) appends **(HC)** to the prediction.
+- **Hijack Round Settings** (Ctrl+Click anywhere on overlay) — configures Ghost, Punished, 8 Pages and RUN. Two global toggles: *After State* (always → 50/50, or slot-dependent) and *Slot Behaviour* (Normal only / Any slot). Settings persist to `ton_overlay_config.json`.
+- **VR Mode** — click the **VR** button (top-left of speed row, turns blue when active) to open a separate detectable window for use with XSOverlay. Shows terror name + stun status, round type + next round prediction, speed, and session round counts in a compact two-column layout. Terror names always display on one line. Unbound rounds show their terror lineup. Native title bar hidden; window is still capturable by XSOverlay via its OS title.
 - **Smile Walker** — new alternate terror added to the database (replaces Apathy). Conditional stun: tase in phase 1 holds for 5s (can still leap); stun only works during first second of Laugh & Leap. Enrages at 60s.
 - **Distorted Yan** — added Korean alt-name alias (`얀샋ㄷ요무`) so the terror is detected correctly under either name.
 - **Unbound round 35** renamed from *Seekers (3x Legs)* to *Maze Things (3x Maze Thing)* following the in-game rename.
