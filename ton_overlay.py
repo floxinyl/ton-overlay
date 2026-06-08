@@ -1591,7 +1591,7 @@ class RoundSettingsWindow:
         ox = overlay.root.winfo_x()
         oy = overlay.root.winfo_y()
         ow = overlay.root.winfo_width()
-        self.win.geometry(f'340x220+{ox + ow + 6}+{oy}')
+        self.win.geometry(f'340x270+{ox + ow + 6}+{oy}')
 
         self._drag_x = 0
         self._drag_y = 0
@@ -1696,9 +1696,7 @@ class RoundSettingsWindow:
 # ---------------------------------------------------------------------------
 
 class VRWindow:
-    """Detectable application window for XSOverlay / VR use.
-    Frameless (overrideredirect) but still carries a title for XSOverlay detection.
-    All info fits without manual resizing."""
+    """Detectable application window for XSOverlay / VR use."""
 
     _STUN_MAP = {
         'yes':         ('✓  STUNNABLE',       '#32D74B'),
@@ -1710,17 +1708,16 @@ class VRWindow:
         'teleport':    ('⟳  TELEPORTS',       '#BF5AF2'),
     }
 
-    _MAX_TERROR_CHARS = 22   # truncate+ellipsis beyond this
+    _MAX_TERROR_CHARS = 26
 
     def __init__(self, overlay):
         self.overlay = overlay
-        C = overlay.colors
 
         self.win = tk.Toplevel(overlay.root)
-        self.win.title('ToN Overlay – VR')   # kept for XSOverlay detection
-        self.win.overrideredirect(True)       # hides native title bar
-        self.win.configure(bg='#111111')
-        self.win.geometry('590x310')
+        self.win.title('ToN Overlay – VR')
+        self.win.overrideredirect(True)
+        self.win.configure(bg='#0A0A0A')
+        self.win.geometry('760x300')
         self.win.resizable(True, True)
         self.win.attributes('-topmost', False)
         self.win.protocol("WM_DELETE_WINDOW", self.destroy)
@@ -1728,118 +1725,135 @@ class VRWindow:
         self._drag_x = 0
         self._drag_y = 0
         self._last_session_counts = {}
-        self._build(C)
+        self._build()
 
     # ------------------------------------------------------------------ build
 
-    def _build(self, C):
-        BG   = '#111111'
-        TBAR = '#1C1C1C'
-        DIM  = '#8E8E93'
-        SEP  = '#2C2C2E'
-        BOLD = ('Segoe UI', 8, 'bold')
-        SM   = ('Segoe UI', 8)
+    def _build(self):
+        BG    = '#0A0A0A'
+        PANEL = '#111111'
+        DIM   = '#8E8E93'
+        SEP   = '#222222'
+        ACNT  = '#2C2C2E'
 
-        # ── Custom title bar (drag handle + close) ──────────────────────────
-        tbar = tk.Frame(self.win, bg=TBAR, height=26)
+        # ── Custom title bar ──────────────────────────────────────────────────
+        tbar = tk.Frame(self.win, bg='#161616', height=24)
         tbar.pack(fill=tk.X, side=tk.TOP)
         tbar.pack_propagate(False)
         tbar.bind('<Button-1>',  self._start_drag)
         tbar.bind('<B1-Motion>', self._on_drag)
 
         tk.Label(tbar, text='ToN Overlay – VR',
-                 font=('Segoe UI', 8), bg=TBAR, fg=DIM).pack(
+                 font=('Segoe UI', 7), bg='#161616', fg='#555555').pack(
                      side=tk.LEFT, padx=10, pady=4)
-
         close = tk.Label(tbar, text='  ✕  ',
-                         font=('Segoe UI', 8, 'bold'),
-                         bg=TBAR, fg=DIM, cursor='hand2')
+                         font=('Segoe UI', 7, 'bold'),
+                         bg='#161616', fg='#444444', cursor='hand2')
         close.pack(side=tk.RIGHT, pady=4)
         close.bind('<Button-1>', lambda e: self.destroy())
         close.bind('<Enter>',    lambda e: close.configure(fg='#FF453A'))
-        close.bind('<Leave>',    lambda e: close.configure(fg=DIM))
+        close.bind('<Leave>',    lambda e: close.configure(fg='#444444'))
 
-        # ── Main content ─────────────────────────────────────────────────────
-        body = tk.Frame(self.win, bg=BG, padx=14, pady=8)
+        tk.Frame(self.win, bg=SEP, height=1).pack(fill=tk.X)
+
+        # ── Body ──────────────────────────────────────────────────────────────
+        body = tk.Frame(self.win, bg=BG, padx=16, pady=10)
         body.pack(fill=tk.BOTH, expand=True)
 
-        left    = tk.Frame(body, bg=BG)
-        divider = tk.Frame(body, bg=SEP, width=1)
-        right   = tk.Frame(body, bg=BG)
+        # ── LEFT: Terror (fixed 260px wide) ───────────────────────────────────
+        left = tk.Frame(body, bg=BG, width=260)
+        left.pack(side=tk.LEFT, fill=tk.Y)
+        left.pack_propagate(False)
 
-        left.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        divider.pack(side=tk.LEFT, fill=tk.Y, padx=12)
-        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # ── LEFT: Terror ─────────────────────────────────────────────────────
-        tk.Label(left, text='TERROR', font=BOLD, bg=BG, fg=DIM,
-                 anchor='w').pack(fill=tk.X)
+        self._section_header(left, 'TERROR', BG, DIM)
 
         self.vr_terror_name = tk.Label(
-            left, text='—', font=('Segoe UI', 18, 'bold'),
-            bg=BG, fg='#FFFFFF', anchor='w',
-            wraplength=0)   # no wrapping — always single line
-        self.vr_terror_name.pack(anchor='w', pady=(1, 5))
+            left, text='—',
+            font=('Segoe UI', 20, 'bold'),
+            bg=BG, fg='#FFFFFF',
+            anchor='w', wraplength=0)
+        self.vr_terror_name.pack(anchor='w', pady=(2, 6))
 
         self.vr_stun_status = tk.Label(
-            left, text='', font=('Segoe UI', 10, 'bold'),
+            left, text='',
+            font=('Segoe UI', 11, 'bold'),
             bg=BG, fg='#FFFFFF', anchor='w')
         self.vr_stun_status.pack(anchor='w')
 
-        # Reused for Unbound terror list only — hidden otherwise
         self.vr_unbound_info = tk.Label(
-            left, text='', font=SM, bg=BG, fg=DIM,
-            anchor='w', justify='left', wraplength=230)
+            left, text='',
+            font=('Segoe UI', 8), bg=BG, fg=DIM,
+            anchor='w', justify='left', wraplength=250)
         self.vr_unbound_info.pack(anchor='w', pady=(3, 0))
 
-        # ── RIGHT: Round ─────────────────────────────────────────────────────
-        tk.Label(right, text='ROUND', font=BOLD, bg=BG, fg=DIM,
-                 anchor='w').pack(fill=tk.X)
+        # ── Divider ───────────────────────────────────────────────────────────
+        tk.Frame(body, bg=ACNT, width=1).pack(side=tk.LEFT, fill=tk.Y, padx=14)
 
+        # ── RIGHT ─────────────────────────────────────────────────────────────
+        right = tk.Frame(body, bg=BG)
+        right.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Top row: ROUND left | SPEED right
+        top_row = tk.Frame(right, bg=BG)
+        top_row.pack(fill=tk.X, anchor='w')
+
+        round_blk = tk.Frame(top_row, bg=BG)
+        round_blk.pack(side=tk.LEFT, anchor='nw', padx=(0, 24))
+
+        self._section_header(round_blk, 'ROUND', BG, DIM)
         self.vr_round_type = tk.Label(
-            right, text='—', font=('Segoe UI', 13, 'bold'),
+            round_blk, text='—',
+            font=('Segoe UI', 15, 'bold'),
             bg=BG, fg=DIM, anchor='w')
         self.vr_round_type.pack(anchor='w')
-
         self.vr_next_round = tk.Label(
-            right, text='', font=('Segoe UI', 9),
-            bg=BG, fg=DIM, anchor='w')
-        self.vr_next_round.pack(anchor='w', pady=(1, 6))
+            round_blk, text='',
+            font=('Segoe UI', 9), bg=BG, fg=DIM, anchor='w')
+        self.vr_next_round.pack(anchor='w', pady=(1, 0))
 
-        tk.Frame(right, bg=SEP, height=1).pack(fill=tk.X, pady=(0, 6))
+        speed_blk = tk.Frame(top_row, bg=BG)
+        speed_blk.pack(side=tk.LEFT, anchor='nw')
 
-        # ── RIGHT: Speed ─────────────────────────────────────────────────────
-        tk.Label(right, text='SPEED', font=BOLD, bg=BG, fg=DIM,
-                 anchor='w').pack(fill=tk.X)
-
+        self._section_header(speed_blk, 'SPEED', BG, DIM)
         self.vr_speed = tk.Label(
-            right, text='0.0 m/s', font=('Segoe UI', 13, 'bold'),
+            speed_blk, text='0.0 m/s',
+            font=('Segoe UI', 15, 'bold'),
             bg=BG, fg='#FFFFFF', anchor='w')
-        self.vr_speed.pack(anchor='w', pady=(0, 6))
+        self.vr_speed.pack(anchor='w')
 
-        tk.Frame(right, bg=SEP, height=1).pack(fill=tk.X, pady=(0, 6))
+        # Separator
+        tk.Frame(right, bg=ACNT, height=1).pack(fill=tk.X, pady=(10, 8))
 
-        # ── RIGHT: Session ───────────────────────────────────────────────────
-        tk.Label(right, text='SESSION', font=BOLD, bg=BG, fg=DIM,
-                 anchor='w').pack(fill=tk.X)
+        # SESSION — 2-column grid
+        sess_hdr = tk.Frame(right, bg=BG)
+        sess_hdr.pack(fill=tk.X)
+        self._section_header(sess_hdr, 'SESSION', BG, DIM)
 
         self.vr_session_frame = tk.Frame(right, bg=BG)
         self.vr_session_frame.pack(fill=tk.X, anchor='w')
 
+    # ------------------------------------------------------------------ helpers
+
+    @staticmethod
+    def _section_header(parent, text, bg, fg):
+        tk.Label(parent, text=text,
+                 font=('Segoe UI', 7, 'bold'),
+                 bg=bg, fg=fg, anchor='w').pack(anchor='w', pady=(0, 2))
+
     # ------------------------------------------------------------------ update
 
     def update(self, overlay):
-        BG  = '#111111'
+        BG  = '#0A0A0A'
         DIM = '#8E8E93'
 
-        # ── Terror name (single line, truncated) ─────────────────────────────
+        # Terror name — single line, truncate if needed
         name = overlay.terror_name
         display = (name if len(name) <= self._MAX_TERROR_CHARS
                    else name[:self._MAX_TERROR_CHARS - 1] + '…')
         self.vr_terror_name.configure(
             text=display if name not in ('...', '') else '—')
 
-        # ── Stun status ───────────────────────────────────────────────────────
+        # Stun status
         info = TERROR_DB.get(name)
         if info:
             key, _ = info
@@ -1848,28 +1862,26 @@ class VRWindow:
         else:
             self.vr_stun_status.configure(text='')
 
-        # ── Unbound info (only for Unbound rounds) ────────────────────────────
+        # Unbound info (only on Unbound rounds)
         if overlay.round_type == 'Unbound':
             if overlay.unbound_revealed:
                 ur = _lookup_unbound(name)
-                if ur:
-                    self.vr_unbound_info.configure(
-                        text=f"Terrors:  {ur['terrors']}", fg=DIM)
-                else:
-                    self.vr_unbound_info.configure(text='')
+                self.vr_unbound_info.configure(
+                    text=f"Terrors:  {ur['terrors']}" if ur else '',
+                    fg=DIM)
             else:
                 self.vr_unbound_info.configure(
                     text='Waiting for reveal…', fg='#3A3A3C')
         else:
             self.vr_unbound_info.configure(text='')
 
-        # ── Round type ────────────────────────────────────────────────────────
+        # Round type
         rt = overlay.round_type
         self.vr_round_type.configure(
             text=rt if rt not in ('...', '') else '—',
             fg=overlay.get_round_color(rt))
 
-        # ── Next round prediction ─────────────────────────────────────────────
+        # Next round prediction
         if rt == 'Intermission':
             pred = overlay._loop_state
             if pred == 'classic':
@@ -1883,26 +1895,37 @@ class VRWindow:
         else:
             self.vr_next_round.configure(text='')
 
-        # ── Speed ─────────────────────────────────────────────────────────────
+        # Speed
         spd = overlay.horizontal_speed
         sc  = ('#32D74B' if spd > 6.0 else
                '#FF9F0A' if spd > 5.5 else '#FFFFFF')
         self.vr_speed.configure(text=f'{spd:.1f} m/s', fg=sc)
 
-        # ── Session rounds (rebuild only on change) ───────────────────────────
+        # Session rounds — 2-column grid, rebuild on change only
         counts = overlay.session_round_counts
         if counts != self._last_session_counts:
             self._last_session_counts = dict(counts)
             for w in self.vr_session_frame.winfo_children():
                 w.destroy()
-            for rnd, cnt in sorted(counts.items(), key=lambda x: -x[1])[:8]:
-                row = tk.Frame(self.vr_session_frame, bg=BG)
-                row.pack(fill=tk.X, pady=1)
-                tk.Label(row, text=rnd, font=('Segoe UI', 8),
+
+            sorted_rounds = sorted(counts.items(), key=lambda x: -x[1])
+            n    = len(sorted_rounds)
+            mid  = (n + 1) // 2   # first column gets the ceiling half
+
+            col1 = tk.Frame(self.vr_session_frame, bg=BG)
+            col2 = tk.Frame(self.vr_session_frame, bg=BG)
+            col1.pack(side=tk.LEFT, anchor='nw', padx=(0, 24))
+            col2.pack(side=tk.LEFT, anchor='nw')
+
+            for i, (rnd, cnt) in enumerate(sorted_rounds):
+                parent = col1 if i < mid else col2
+                # Truncate round names to fit column (~14 chars)
+                disp = rnd if len(rnd) <= 14 else rnd[:13] + '…'
+                tk.Label(parent,
+                         text=f'{disp}  ×{cnt}',
+                         font=('Segoe UI', 8),
                          bg=BG, fg=overlay.get_round_color(rnd),
-                         anchor='w').pack(side=tk.LEFT)
-                tk.Label(row, text=f'×{cnt}', font=('Segoe UI', 8),
-                         bg=BG, fg=DIM).pack(side=tk.RIGHT)
+                         anchor='w').pack(anchor='w', pady=1)
 
     # ------------------------------------------------------------------ drag / close
 
@@ -2102,11 +2125,18 @@ class ToNOverlay:
         self.vr_toggle_label.pack(side=tk.LEFT)
         self.vr_toggle_label.bind('<Button-1>', lambda e: self.toggle_vr_mode())
 
+        # Speed value — wrapped in an expand frame so it truly centres between
+        # the VR toggle on the left and the survival/650 labels on the right
+        _speed_center = tk.Frame(speed_row, bg=C['bg'])
+        _speed_center.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        _speed_center.bind('<Button-1>', self.start_drag)
+        _speed_center.bind('<B1-Motion>', self.on_drag)
+
         self.speed_value = tk.Label(
-            speed_row, text="0.00 m/s",
+            _speed_center, text="0.00 m/s",
             font=('Segoe UI', 22, 'bold'),
             bg=C['bg'], fg=C['fg'], anchor='center')
-        self.speed_value.pack(side=tk.LEFT, expand=True)
+        self.speed_value.pack(fill=tk.X)
         self.speed_value.bind('<Button-1>', self.start_drag)
         self.speed_value.bind('<B1-Motion>', self.on_drag)
 
