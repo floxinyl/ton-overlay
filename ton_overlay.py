@@ -1962,6 +1962,14 @@ class ToNOverlay:
         self.special_terror_timer_start = None
         self.is_special_terror          = False
 
+        # 6.50 m/s detection (8 Pages / Punished, Intermission only)
+        self.previous_round_type   = ''
+        self.speed_650_start_time  = None
+        self.show_650_text         = False
+        self.show_650_start_time   = None
+        self.cooldown_650_active   = False
+        self.cooldown_650_end_time = 0
+
         # Lisa name-reveal: if alternate round and killer is still ??? after 11s
         self.lisa_reveal_timer_start = None
         self.lisa_revealed           = False
@@ -2077,6 +2085,13 @@ class ToNOverlay:
         self.survival_counter_label.pack(side=tk.RIGHT, padx=(0, 2))
         self.survival_counter_label.bind('<Button-1>', self.start_drag)
         self.survival_counter_label.bind('<B1-Motion>', self.on_drag)
+
+        # 6.50 detection label (hidden by default, appears during Intermission)
+        self.speed_650_label = tk.Label(
+            speed_row, text='',
+            font=('Segoe UI', 9, 'bold'),
+            bg=C['bg'], fg='#FFD700')
+        self.speed_650_label.pack(side=tk.RIGHT, padx=(0, 8))
 
         # VR mode toggle — top-left of speed row, mirrors SP label width for centering
         self.vr_toggle_label = tk.Label(
@@ -2354,6 +2369,52 @@ class ToNOverlay:
                 self._settings_window = None
         self._settings_window = RoundSettingsWindow(self)
 
+    # -- 6.50 m/s detection (8 Pages / Punished) ---------------------------------
+
+    def check_650_speed(self):
+        now = time.time()
+        # If label is currently showing, check if 10s display window has elapsed
+        if self.show_650_text:
+            if now - self.show_650_start_time >= 10:
+                self.show_650_text = False
+                self.cooldown_650_active   = True
+                self.cooldown_650_end_time = now + 10
+                self.speed_650_label.configure(text='')
+            return
+        # Cooldown: don't re-trigger until it expires
+        if self.cooldown_650_active:
+            if now < self.cooldown_650_end_time:
+                return
+            self.cooldown_650_active = False
+        # Only active during Intermission
+        if self.round_type != 'Intermission':
+            self.speed_650_start_time = None
+            return
+        # Detect sustained 6.50 m/s for at least 0.1s
+        if abs(self.horizontal_speed - 6.50) < 0.01:
+            if self.speed_650_start_time is None:
+                self.speed_650_start_time = now
+            elif now - self.speed_650_start_time >= 0.1:
+                self.show_650_text       = True
+                self.show_650_start_time = now
+                self.speed_650_start_time = None
+                self.speed_650_label.configure(text='8 Pages / Punished')
+                print('8 Pages / Punished detected (6.50 m/s during Intermission)')
+        else:
+            self.speed_650_start_time = None
+
+    def handle_round_change(self, new_round):
+        """Called on every round-type change; manages the 650 cooldown."""
+        if (self.previous_round_type in ('Punished', '8 Pages')
+                and new_round == 'Intermission'):
+            self.cooldown_650_active   = True
+            self.cooldown_650_end_time = time.time() + 10
+        # Clear label immediately when leaving Intermission
+        if self.show_650_text and new_round != 'Intermission':
+            self.show_650_text = False
+            self.speed_650_label.configure(text='')
+        self.previous_round_type = new_round
+
     # -- loop-counter state machine -------------------------------------------
 
     # Tier classification for the round-counter engine
@@ -2488,6 +2549,7 @@ class ToNOverlay:
                                 self.april_fools_base     = ''
 
                             self.round_type = new_round
+                            self.handle_round_change(new_round)
 
                             # Advance the next-round predictor
                             if new_round not in ('Intermission', 'Connecting...'):
@@ -2587,6 +2649,7 @@ class ToNOverlay:
 
     def update_ui(self):
         C = self.colors
+        self.check_650_speed()
 
         # Speed label
         self.speed_value.configure(text=f"{self.horizontal_speed:.2f} m/s")
